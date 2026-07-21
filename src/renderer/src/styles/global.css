@@ -1,0 +1,53 @@
+:root {
+  --bg-deep: #0c0b0a;
+  --bg-mid: #1a1512;
+  --ink: #f4efe6;
+  --ink-muted: rgba(244, 239, 230, 0.45);
+  --ink-dim: rgba(244, 239, 230, 0.22);
+  --accent: #c4a574;
+  --accent-soft: rgba(196, 165, 116, 0.35);
+  --danger: #c45c4a;
+  --hud-bg: rgba(12, 11, 10, 0.72);
+  --font-display: 'ZCOOL XiaoWei', 'Noto Serif SC', serif;
+  --font-body: 'Noto Serif SC', 'Songti SC', serif;
+  --energy: 0;
+  --beat-scale: 1;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: transparent;
+}
+
+.app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
