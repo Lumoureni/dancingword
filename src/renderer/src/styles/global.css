@@ -2,12 +2,14 @@
   --bg-deep: #0c0b0a;
   --bg-mid: #1a1512;
   --ink: #f4efe6;
-  --ink-muted: rgba(244, 239, 230, 0.45);
-  --ink-dim: rgba(244, 239, 230, 0.22);
+  --ink-muted: rgba(244, 239, 230, 0.58);
+  --ink-dim: rgba(244, 239, 230, 0.34);
+  --ink-faint: rgba(244, 239, 230, 0.2);
   --accent: #c4a574;
   --accent-soft: rgba(196, 165, 116, 0.35);
-  --danger: #c45c4a;
-  --hud-bg: rgba(12, 11, 10, 0.72);
+  --danger: #d4705c;
+  --hud-bg: rgba(12, 11, 10, 0.78);
+  --focus-ring: 0 0 0 2px rgba(196, 165, 116, 0.9);
   --font-display: 'ZCOOL XiaoWei', 'Noto Serif SC', serif;
   --font-body: 'Noto Serif SC', 'Songti SC', serif;
   --energy: 0;
@@ -44,6 +46,19 @@ button {
   cursor: pointer;
   border: none;
   background: transparent;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+button:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+  box-shadow: none;
 }
 
 .app {

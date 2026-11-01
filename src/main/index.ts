@@ -1,8 +1,9 @@
 import { app, BrowserWindow, desktopCapturer, ipcMain, screen, shell } from 'electron'
 import { join } from 'path'
 import { MediaSessionService } from './media/sessions'
+import { controlPlayback } from './media/control'
 import { fetchLyricsFromLrclib } from './lyrics'
-import type { NowPlayingPayload } from '../shared/media'
+import type { NowPlayingPayload, TransportCommand, TransportResult } from '../shared/media'
 import type { LyricsQuery } from '../shared/lyrics'
 
 const mediaService = new MediaSessionService()
@@ -119,6 +120,34 @@ app.whenReady().then(() => {
     broadcastNowPlaying(snapshot)
     return snapshot
   })
+
+  ipcMain.handle(
+    'media:control',
+    async (
+      _event,
+      command: TransportCommand
+    ): Promise<TransportResult> => {
+      const allowed: TransportCommand[] = ['playPause', 'next', 'previous']
+      if (!allowed.includes(command)) {
+        return { ok: false, method: 'none', message: '未知控制指令' }
+      }
+
+      const snapshot = mediaService.getSnapshot()
+      // Prefer the AUMID of the track we are actually following (auto = NetEase),
+      // not bare preferredAppId (null in auto mode would hit GetCurrentSession → browser).
+      const targetAppId = snapshot.track?.appId || snapshot.preferredAppId || null
+      const result = await controlPlayback(command, targetAppId)
+
+      // Give SMTC a moment to publish the new track/status, then push.
+      if (result.ok) {
+        await new Promise((r) => setTimeout(r, 200))
+        await mediaService.refreshNow()
+        broadcastNowPlaying(mediaService.getSnapshot())
+      }
+
+      return result
+    }
+  )
 
   ipcMain.handle('lyrics:fetch', async (_event, query: LyricsQuery) => {
     return fetchLyricsFromLrclib(query)

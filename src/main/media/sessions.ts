@@ -10,6 +10,7 @@ import type {
   NowPlayingPayload,
   PlaybackStatus
 } from '../../shared/media'
+import { resolveTrackCover } from './cover'
 
 type SessionListener = (payload: NowPlayingPayload) => void
 
@@ -39,7 +40,19 @@ function resolveAppName(session: MediaSession): string {
   return aumid || '未知应用'
 }
 
+/** Default follow target: NetEase only (never Bilibili / browsers / etc.). */
+function isNeteaseSession(session: MediaSession): boolean {
+  const aumid = (session.sourceAppUserModelId ?? '').toLowerCase()
+  return (
+    aumid.includes('cloudmusic') ||
+    aumid.includes('netease') ||
+    aumid.includes('cloudmusicexe') ||
+    resolveAppName(session) === '网易云音乐'
+  )
+}
+
 function toTrack(session: MediaSession): MediaTrack {
+  const caps = session.controls
   return {
     title: session.title?.trim() || '未知曲目',
     artist: session.artist?.trim() || '未知艺术家',
@@ -49,7 +62,15 @@ function toTrack(session: MediaSession): MediaTrack {
     playbackStatus: mapStatus(session.playbackStatus),
     thumbnail: session.thumbnail ?? null,
     appId: session.sourceAppUserModelId ?? '',
-    appName: resolveAppName(session)
+    appName: resolveAppName(session),
+    controls: {
+      // NetEase SMTC often reports skip flags as false while TrySkipNext still
+      // works — treat basic transport as available unless clearly closed.
+      canPlay: caps?.canPlay ?? true,
+      canPause: caps?.canPause ?? true,
+      canSkipNext: caps?.canSkipNext ?? true,
+      canSkipPrevious: caps?.canSkipPrevious ?? true
+    }
   }
 }
 
@@ -69,13 +90,17 @@ function pickSession(
 ): MediaSession | null {
   if (!sessions.length) return null
 
+  // Explicit user choice (settings): follow that app only.
   if (preferredAppId) {
-    const preferred = sessions.find((s) => s.sourceAppUserModelId === preferredAppId)
-    return preferred ?? null
+    return sessions.find((s) => s.sourceAppUserModelId === preferredAppId) ?? null
   }
 
-  const playing = sessions.find((s) => s.playbackStatus === 'playing')
-  return playing ?? sessions[0] ?? null
+  // Default "auto": NetEase only — do not follow Bilibili, browsers, etc.
+  const netease = sessions.filter(isNeteaseSession)
+  if (!netease.length) return null
+
+  const playing = netease.find((s) => s.playbackStatus === 'playing')
+  return playing ?? netease[0]
 }
 
 export class MediaSessionService {
@@ -177,6 +202,10 @@ export class MediaSessionService {
     }
   }
 
+  private coverToken = 0
+  /** title|artist → resolved cover URL when SMTC omits thumbnail. */
+  private resolvedCovers = new Map<string, string>()
+
   private emit(sessions: readonly MediaSession[]): void {
     const infos = sessions
       .filter((s) => Boolean(s.sourceAppUserModelId))
@@ -191,7 +220,16 @@ export class MediaSessionService {
     }
 
     const selected = pickSession(sessions, this.preferredAppId)
-    const track = selected ? toTrack(selected) : null
+    let track = selected ? toTrack(selected) : null
+
+    // SMTC often re-emits without thumbnail every poll — keep last resolved art.
+    if (track && !track.thumbnail) {
+      const coverKey = `${track.title}|${track.artist}`
+      const cached = this.resolvedCovers.get(coverKey)
+      if (cached) {
+        track = { ...track, thumbnail: cached }
+      }
+    }
 
     this.lastPayload = {
       sessions: Array.from(unique.values()),
@@ -201,6 +239,55 @@ export class MediaSessionService {
 
     for (const listener of Array.from(this.listeners)) {
       listener(this.lastPayload)
+    }
+
+    void this.fillMissingCover(track)
+  }
+
+  /**
+   * NetEase SMTC often omits thumbnail. Look up album art by title/artist
+   * and patch the payload once so the UI can show the cover card/background.
+   */
+  private async fillMissingCover(track: MediaTrack | null): Promise<void> {
+    if (!track || track.thumbnail) return
+    if (!track.title || track.title === '未知曲目') return
+
+    const token = ++this.coverToken
+    try {
+      const cover = await resolveTrackCover({
+        title: track.title,
+        artist: track.artist === '未知艺术家' ? '' : track.artist,
+        album: track.album,
+        durationMs: track.durationMs
+      })
+      if (!cover) return
+      if (token !== this.coverToken) return
+
+      this.resolvedCovers.set(`${track.title}|${track.artist}`, cover)
+      if (this.resolvedCovers.size > 32) {
+        const first = this.resolvedCovers.keys().next().value
+        if (first) this.resolvedCovers.delete(first)
+      }
+
+      const current = this.lastPayload.track
+      if (
+        !current ||
+        current.title !== track.title ||
+        current.artist !== track.artist ||
+        current.thumbnail
+      ) {
+        return
+      }
+
+      this.lastPayload = {
+        ...this.lastPayload,
+        track: { ...current, thumbnail: cover }
+      }
+      for (const listener of Array.from(this.listeners)) {
+        listener(this.lastPayload)
+      }
+    } catch {
+      // cover is optional
     }
   }
 }

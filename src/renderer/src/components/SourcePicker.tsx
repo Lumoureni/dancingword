@@ -18,7 +18,7 @@ export function SourcePicker({
         onChange={(e) => onChange(e.target.value || null)}
         aria-label="音乐来源"
       >
-        <option value="">自动（正在播放）</option>
+        <option value="">自动（仅网易云）</option>
         {sessions.map((s) => (
           <option key={s.appId} value={s.appId}>
             {s.appName}

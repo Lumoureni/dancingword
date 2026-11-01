@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SourcePicker } from './components/SourcePicker'
 import { useNowPlaying } from './hooks/useNowPlaying'
 
@@ -37,6 +37,29 @@ export function SettingsApp(): React.JSX.Element {
     Boolean(payload.preferredAppId) &&
     !payload.sessions.some((s) => s.appId === payload.preferredAppId)
 
+  const activeSession = useMemo(() => {
+    if (payload.preferredAppId) {
+      return payload.sessions.find((s) => s.appId === payload.preferredAppId) ?? null
+    }
+    // Auto mode follows NetEase only — report the actual track we bound.
+    if (payload.track) {
+      return {
+        appId: payload.track.appId,
+        appName: payload.track.appName,
+        playbackStatus: payload.track.playbackStatus,
+        title: payload.track.title,
+        artist: payload.track.artist
+      }
+    }
+    return null
+  }, [payload])
+
+  const followLabel = activeSession
+    ? `正在跟随：${activeSession.appName}${activeSession.title ? ` · ${activeSession.title}` : ''}`
+    : payload.preferredAppId
+      ? '尚未检测到所选来源的播放'
+      : '自动模式：仅跟随网易云'
+
   return (
     <div className="settings">
       <header className="settings__header">
@@ -44,19 +67,22 @@ export function SettingsApp(): React.JSX.Element {
         <p>配置音乐来源与沉浸式播放选项</p>
       </header>
 
-      <section className="settings__section">
-        <h2>音乐来源</h2>
+      <section className="settings__section" aria-labelledby="settings-source-heading">
+        <h2 id="settings-source-heading">音乐来源</h2>
         <p className="settings__desc">
-          选择网易云、QQ 音乐或其他桌面播放器。选定后只跟随该来源，避免串台。
+          默认仅跟随网易云。也可手动指定 QQ 音乐、B 站等其它播放器，选定后只跟随该来源。
         </p>
         <SourcePicker
           sessions={payload.sessions}
           preferredAppId={payload.preferredAppId}
           onChange={onPreferredApp}
         />
+        <p className="settings__status" aria-live="polite">
+          {followLabel}
+        </p>
         {payload.sessions.length === 0 ? (
           <p className="settings__note">
-            当前没有可用媒体会话。请先在播放器中开始播放；网易云可能需要 SMTC 插件。
+            当前没有可用媒体会话。请先在网易云中开始播放；官方客户端可能需要 SMTC 插件。
           </p>
         ) : null}
         {preferredMissing ? (
@@ -66,9 +92,11 @@ export function SettingsApp(): React.JSX.Element {
         ) : null}
       </section>
 
-      <section className="settings__section">
-        <h2>鼓点检测</h2>
-        <p className="settings__desc">通过系统音频回环驱动歌词脉冲动效。</p>
+      <section className="settings__section" aria-labelledby="settings-beat-heading">
+        <h2 id="settings-beat-heading">鼓点检测</h2>
+        <p className="settings__desc">
+          通过系统音频回环驱动歌词脉冲动效。关闭后歌词仍正常显示，仅失去节拍动效。
+        </p>
         <label className="settings__toggle">
           <input
             type="checkbox"

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { NowPlayingPayload } from '../shared/media'
+import type { NowPlayingPayload, TransportCommand, TransportResult } from '../shared/media'
 import type { LyricsQuery, LyricsResultDto } from '../shared/lyrics'
 
 export interface DesktopSource {
@@ -14,6 +14,8 @@ const api = {
     refresh: (): Promise<NowPlayingPayload> => ipcRenderer.invoke('media:refresh'),
     setPreferredApp: (appId: string | null): Promise<NowPlayingPayload> =>
       ipcRenderer.invoke('media:set-preferred-app', appId),
+    control: (command: TransportCommand): Promise<TransportResult> =>
+      ipcRenderer.invoke('media:control', command),
     onNowPlaying: (callback: (payload: NowPlayingPayload) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: NowPlayingPayload): void => {
         callback(payload)

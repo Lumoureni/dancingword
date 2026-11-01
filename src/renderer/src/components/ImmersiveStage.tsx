@@ -118,6 +118,16 @@ export function ImmersiveStage({
 
       <div className="stage__brand">Dancingword</div>
 
+      {artUrl ? (
+        <div className="stage__cover" aria-hidden>
+          <div
+            key={`card-${artUrl.slice(0, 64)}`}
+            className="stage__cover-card"
+            style={{ backgroundImage: `url(${artUrl})` }}
+          />
+        </div>
+      ) : null}
+
       <div className="stage__meta">
         {track ? (
           <>
@@ -131,7 +141,7 @@ export function ImmersiveStage({
           <div className="stage__artist">
             {preferredMissing
               ? '已选择来源，但当前没有该播放器的媒体会话。请先在对应软件中播放。'
-              : '请在网易云 / QQ 音乐或其他播放器中开始播放'}
+              : '请在网易云中开始播放（默认仅识别网易云）'}
           </div>
         )}
       </div>

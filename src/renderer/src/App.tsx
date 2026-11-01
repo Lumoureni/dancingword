@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { TransportCommand } from '../../shared/media'
 import { HudControls } from './components/HudControls'
 import { ImmersiveStage } from './components/ImmersiveStage'
 import { useBeatPulse } from './hooks/useBeatPulse'
@@ -21,6 +22,7 @@ export default function App(): React.JSX.Element {
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
   const [beatEnabled, setBeatEnabled] = useState(readBeatEnabled)
   const [prefsReady, setPrefsReady] = useState(false)
+  const [transportBusy, setTransportBusy] = useState(false)
   const beat = useBeatPulse(beatEnabled)
 
   useEffect(() => {
@@ -127,6 +129,22 @@ export default function App(): React.JSX.Element {
     void window.dancingword.window.setAlwaysOnTop(next).then(setAlwaysOnTop)
   }, [alwaysOnTop])
 
+  const sendTransport = useCallback(async (command: TransportCommand): Promise<void> => {
+    if (transportBusy) return
+    setTransportBusy(true)
+    try {
+      const result = await window.dancingword.media.control(command)
+      if (!result.ok && result.message) {
+        console.warn('[transport]', command, result.message)
+      }
+    } catch (err) {
+      console.warn('[transport] failed', command, err)
+    } finally {
+      // Brief lock so rapid clicks don't double-fire media commands.
+      window.setTimeout(() => setTransportBusy(false), 280)
+    }
+  }, [transportBusy])
+
   if (!prefsReady) {
     return <div className="app" />
   }
@@ -157,12 +175,18 @@ export default function App(): React.JSX.Element {
         alwaysOnTop={alwaysOnTop}
         beatEnabled={beatEnabled}
         beatActive={beat.active}
+        hasTrack={Boolean(track)}
+        playbackStatus={track?.playbackStatus ?? 'unknown'}
+        transportBusy={transportBusy}
         onOpenSettings={() => void window.dancingword.window.openSettings()}
         onToggleAlwaysOnTop={onToggleAlwaysOnTop}
         onToggleFullscreen={() => void window.dancingword.window.toggleFullscreen()}
         onToggleBeat={() => setBeatEnabled((v) => !v)}
         onMinimize={() => void window.dancingword.window.minimize()}
         onClose={() => void window.dancingword.window.close()}
+        onPlayPause={() => void sendTransport('playPause')}
+        onNext={() => void sendTransport('next')}
+        onPrevious={() => void sendTransport('previous')}
       />
     </div>
   )
